@@ -33,3 +33,6 @@
 
 ./.vc
 ./out
+./externals
+./temp
+./build
