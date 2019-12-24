@@ -31,8 +31,7 @@
 *.out
 *.app
 
-./.vc
-./out
-./externals
-./temp
-./build
+.vs/
+out/
+externals/
+build/

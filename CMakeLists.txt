@@ -9,9 +9,15 @@ add_subdirectory( include )
 option( BUILD_REGRESSION "Build regression tests" OFF )
 option( BUILD_BENCHMARK  "Build benchmark tests" OFF )
 
-if ( BUILD_TESTS AND TARGET storageInterface )
+if ( BUILD_REGRESSION )
 
     enable_testing()
-    #add_subdirectory( test )
+    add_subdirectory( test )
+
+endif()
+
+if ( BUILD_REGRESSION )
+
+    #add_subdirectory( benchmark )
 
 endif()
