@@ -14,7 +14,7 @@ if ( TARGET boost )
 
     get_property( isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG )
     if ( isMultiConfig )
-        file( GLOB header_files *.h )
+        file( GLOB header_files jb/*.h )
         add_custom_target( storage-headers SOURCES ${header_files} )
     endif()
 
