@@ -1,21 +1,21 @@
 cmake_minimum_required( VERSION 3.9 )
 
-find_package( BoostEx )
+#
+# Create storage jb library
+#
+# Since the this is PURE TEMPLATE library (i.e. there is nothing to build) create target as
+# INTERFACE, specify include path, and dependencies
+#
+add_library( jb INTERFACE )
+target_compile_features( jb INTERFACE cxx_std_17 )
+target_include_directories( jb INTERFACE . ${Boost_INCLUDE_DIRS} )
+target_link_directories( jb INTERFACE ${Boost_LIBRARY_DIRS} )
 
-if ( TARGET boost )
-
-    message( "Boost defined" )
-
-    add_library( storage INTERFACE )
-
-    target_compile_features( storage INTERFACE cxx_std_17 )
-    target_include_directories( storage INTERFACE . )
-    target_link_libraries( storage INTERFACE boost )
-
-    get_property( isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG )
-    if ( isMultiConfig )
-        file( GLOB header_files jb/*.h )
-        add_custom_target( storage-headers SOURCES ${header_files} )
-    endif()
-
+#
+# if IDE is used create a non-compilable target to list header files
+#
+get_property( isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG )
+if ( isMultiConfig )
+    file( GLOB header_files jb/*.h )
+    add_custom_target( jb-headers SOURCES ${header_files} )
 endif()

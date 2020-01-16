@@ -1,8 +1,5 @@
-cmake_minimum_required( VERSION 3.9 FATAL_ERROR )
+cmake_minimum_required( VERSION 3.15 FATAL_ERROR )
 
-include( GoogleTest )
-
-#add_executable( regression )
-#target_link_libraries(regression PRIVATE storage GTestEx )
-
-#gtest_add_tests( TARGET regression SOURCES test1.cpp )
+add_executable( regression test1.cpp )
+target_link_libraries( regression PRIVATE gtest gtest_main )
+gtest_add_tests( TARGET regression AUTO )
