@@ -5,7 +5,10 @@ namespace jb
 {
     enum class RetCode
     {
-        Ok = 0
+        Ok = 0,
+        UnknownError,
+        InsufficientMemory,
+        InvalidHandle
     };
 }
 
