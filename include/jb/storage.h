@@ -3,6 +3,7 @@
 
 
 #include "ret_codes.h"
+#include "virtual_volume.h"
 #include <memory>
 #include <mutex>
 #include <unordered_set>
@@ -89,11 +90,9 @@ namespace jb
     
     public:
 
-        // temporary stub
-        struct virtual_volume
-        {
-            RetCode status() const noexcept { return RetCode::Ok; }
-        };
+        /** Instanciates virtual volume with policies
+        */
+        using virtual_volume = details::virtual_volume< Policy >;
 
         // temporary stub
         struct physical_volume
