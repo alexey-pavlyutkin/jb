@@ -195,6 +195,8 @@ namespace jb
                     std::unique_lock lock( guard );
                     volumes.clear();
                 }
+
+                return RetCode::Ok;
             }
             catch ( ... )
             {
