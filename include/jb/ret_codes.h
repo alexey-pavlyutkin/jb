@@ -8,7 +8,8 @@ namespace jb
         Ok = 0,
         UnknownError,
         InsufficientMemory,
-        InvalidHandle
+        InvalidHandle,
+        InvalidFilePath
     };
 }
 

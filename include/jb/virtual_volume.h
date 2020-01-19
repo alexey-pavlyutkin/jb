@@ -10,8 +10,6 @@ namespace jb
         template < typename Policies >
         class virtual_volume
         {
-            RetCode status_ = RetCode::Ok;
-
         public:
 
             /** Default constructor
@@ -25,13 +23,6 @@ namespace jb
             Prevents implicit copy/move construction/assignment
             */
             virtual_volume( virtual_volume&& ) = delete;
-
-            /** Provides volume status
-
-            @retval volume status
-            @throw nothing
-            */
-            RetCode status() const noexcept { return status_; }
         };
     }
 }

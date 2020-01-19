@@ -4,6 +4,8 @@
 
 #include "ret_codes.h"
 #include "virtual_volume.h"
+#include "physical_volume.h"
+#include "exception.h"
 #include <memory>
 #include <mutex>
 #include <unordered_set>
@@ -58,25 +60,21 @@ namespace jb
             {
                 auto [ guard, volumes ] = singleton< VolumeType >();
                 auto volume = std::make_shared< VolumeType >( std::forward< Args >( args )... );
-                assert( volume );
 
-                if ( RetCode::Ok == volume->status() )
+                std::unique_lock lock( guard );
+
+                if ( auto ok = volumes.insert( volume ).second )
                 {
-                    std::unique_lock lock( guard );
-
-                    if ( auto ok = volumes.insert( volume ).second )
-                    {
-                        return { RetCode::Ok, std::weak_ptr< VolumeType >( volume ) };
-                    }
-                    else
-                    {
-                        return { RetCode::UnknownError, std::weak_ptr< VolumeType >() };
-                    }
+                    return { RetCode::Ok, std::weak_ptr< VolumeType >( volume ) };
                 }
                 else
                 {
-                    return { volume->status(), std::weak_ptr< VolumeType >() };
+                    return { RetCode::UnknownError, std::weak_ptr< VolumeType >() };
                 }
+            }
+            catch ( const details::exception & e )
+            {
+                return { e.error_code(), std::weak_ptr< VolumeType >() };
             }
             catch ( const std::bad_alloc& )
             {
@@ -94,18 +92,9 @@ namespace jb
         */
         using virtual_volume = details::virtual_volume< Policy >;
 
-        // temporary stub
-        struct physical_volume
-        {
-            physical_volume( const std::filesystem::path& path, int priority ) : path_( path ), priority_( priority ) {}
-
-            const std::filesystem::path& path() const noexcept { return path_; }
-            int priority() const noexcept { return priority_; }
-            RetCode status() const noexcept { return RetCode::Ok; }
-            
-            std::filesystem::path path_;
-            int priority_ = 0;
-        };
+        /** Instanciates virtual volume with policies
+        */
+        using physical_volume = details::physical_volume< Policy >;
 
 
         /** Opens another virtual volume

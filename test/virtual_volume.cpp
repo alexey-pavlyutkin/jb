@@ -20,7 +20,6 @@ namespace jb
             ASSERT_EQ( RetCode::Ok, rc );
             ASSERT_FALSE( virtual_volume_handle.expired() );
             //
-            EXPECT_EQ( RetCode::Ok, virtual_volume_handle.lock()->status() );
         }
     }
 }

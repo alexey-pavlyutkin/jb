@@ -38,15 +38,11 @@ namespace jb {
             auto [rc1, physical_volume_handle_1] = s.open_physical_volume( "./foo.jb" );
             EXPECT_EQ( RetCode::Ok, rc1 );
             EXPECT_FALSE( physical_volume_handle_1.expired() );
-            EXPECT_EQ( "./foo.jb", physical_volume_handle_1.lock()->path() );
-            EXPECT_EQ( 0, physical_volume_handle_1.lock()->priority() );
             
             // open another physical volume and check parameters
             auto [rc2, physical_volume_handle_2] = s.open_physical_volume( "./boo.jb", 1 );
             EXPECT_EQ( RetCode::Ok, rc2 );
             EXPECT_FALSE( physical_volume_handle_2.expired() );
-            EXPECT_EQ( "./boo.jb", physical_volume_handle_2.lock()->path() );
-            EXPECT_EQ( 1, physical_volume_handle_2.lock()->priority() );
 
             // close 1st volume
             EXPECT_EQ( RetCode::Ok, s.close( physical_volume_handle_1 ) );
