@@ -10,7 +10,6 @@ namespace jb
             using key_t = typename storage<>::key_t;
             using physical_volume_t = typename typename storage<>::physical_volume_t;
             using mount_point_t = typename storage<>::mount_point_t;
-
             struct private_construction : public mount_point_t
             {
                 template < typename... Args >
