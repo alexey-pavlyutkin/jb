@@ -8,13 +8,13 @@ namespace jb
 {
     namespace details
     {
-        class exception : public std::runtime_error
+        class runtime_error : public std::runtime_error
         {
             RetCode error_code_ = RetCode::Ok;
 
         public:
 
-            explicit exception( RetCode error_code) noexcept
+            explicit runtime_error( RetCode error_code) noexcept
                 : std::runtime_error( "jb storage internal run-time error" )
                 , error_code_( error_code )
             {}

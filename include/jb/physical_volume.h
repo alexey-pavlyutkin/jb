@@ -28,7 +28,7 @@ namespace jb
             }
             catch ( const std::filesystem::filesystem_error & e )
             {
-                throw exception( RetCode::InvalidFilePath );
+                throw runtime_error( RetCode::InvalidFilePath );
             }
 
             const std::filesystem::path& path() const noexcept { return path_; }

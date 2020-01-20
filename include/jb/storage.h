@@ -12,6 +12,7 @@
 #include <tuple>
 #include <filesystem>
 #include <type_traits>
+#include <variant>
 
 
 namespace jb
@@ -20,6 +21,8 @@ namespace jb
     */
     struct default_policy
     {
+        using key_char_t = char;
+        using value_t = std::variant< int, double, std::string, std::wstring >;
     };
 
 
@@ -72,7 +75,7 @@ namespace jb
                     return { RetCode::UnknownError, std::weak_ptr< VolumeType >() };
                 }
             }
-            catch ( const details::exception & e )
+            catch ( const details::runtime_error & e )
             {
                 return { e.error_code(), std::weak_ptr< VolumeType >() };
             }
@@ -90,11 +93,15 @@ namespace jb
 
         /** Instanciates virtual volume with policies
         */
-        using virtual_volume = details::virtual_volume< Policy >;
+        using virtual_volume_t = details::virtual_volume< Policy >;
 
         /** Instanciates virtual volume with policies
         */
-        using physical_volume = details::physical_volume< Policy >;
+        using physical_volume_t = details::physical_volume< Policy >;
+
+        using mount_point_t = typename virtual_volume_t::mount_point_t;
+        using key_t = std::basic_string< typename Policy::key_char_t >;
+        using value_t = typename Policy::value_t;
 
 
         /** Opens another virtual volume
@@ -104,10 +111,10 @@ namespace jb
         @throw nothing
         */
         [[nodiscard]]
-        static std::tuple< RetCode, std::weak_ptr< virtual_volume > >
+        static std::tuple< RetCode, std::weak_ptr< virtual_volume_t > >
         open_virtual_volume() noexcept
         {
-            return open< virtual_volume >();
+            return open< virtual_volume_t >();
         }
 
 
@@ -120,10 +127,10 @@ namespace jb
         @throw nothing
         */
         [[nodiscard]]
-        static std::tuple< RetCode, std::weak_ptr< physical_volume > >
+        static std::tuple< RetCode, std::weak_ptr< physical_volume_t > >
         open_physical_volume( const std::filesystem::path& path, int priority = 0 ) noexcept
         {
-            return open< physical_volume >( path, priority );
+            return open< physical_volume_t >( path, priority );
         }
 
 
@@ -137,8 +144,8 @@ namespace jb
         template< typename VolumeType >
         static RetCode close( std::weak_ptr< VolumeType > volume ) noexcept
         {
-            static_assert(  std::is_same_v< VolumeType, virtual_volume > || 
-                            std::is_same_v< VolumeType, physical_volume > );
+            static_assert(  std::is_same_v< VolumeType, virtual_volume_t > || 
+                            std::is_same_v< VolumeType, physical_volume_t > );
 
             try
             {
@@ -172,13 +179,13 @@ namespace jb
             try
             {
                 {
-                    auto [guard, volumes] = singleton< virtual_volume >();
+                    auto [guard, volumes] = singleton< virtual_volume_t >();
 
                     std::unique_lock lock( guard );
                     volumes.clear();
                 }
                 {
-                    auto [guard, volumes] = singleton< physical_volume >();
+                    auto [guard, volumes] = singleton< physical_volume_t >();
 
                     std::unique_lock lock( guard );
                     volumes.clear();
