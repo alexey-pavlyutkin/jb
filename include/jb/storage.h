@@ -5,6 +5,7 @@
 #include "ret_codes.h"
 #include "virtual_volume.h"
 #include "physical_volume.h"
+#include "mount_point.h"
 #include "exception.h"
 #include <memory>
 #include <mutex>
@@ -13,24 +14,26 @@
 #include <filesystem>
 #include <type_traits>
 #include <variant>
+#include <string>
 
 
 namespace jb
 {
     /** Abstracts a set of compile-time settings
     */
-    struct default_policy
+    struct default_policies
     {
         using key_char_t = char;
+        using key_traits_t = std::char_traits< key_char_t >;
         using value_t = std::variant< int, double, std::string, std::wstring >;
     };
 
 
     /** Implements key-value storage, takes care about volume collections
 
-    @tparam Policy - compile-time settings
+    @tparam Policies - compile-time settings
     */
-    template < typename Policy = default_policy >
+    template < typename Policies = default_policies >
     class storage
     {
         /** Provides abstract volume collection
@@ -47,6 +50,17 @@ namespace jb
             return std::forward_as_tuple( guard, volumes );
         }
 
+
+        /** Lets call std::make_shared<> for classes with private constructors
+        */
+        template < typename T >
+        struct private_construction : public T
+        {
+            template < typename... Args >
+            private_construction( Args&&... args ) : T( std::forward< Args >( args )... ) {}
+        };
+
+
         /** Opens abstract volume
 
         @tparam VolumeType - volume type
@@ -62,7 +76,7 @@ namespace jb
             try
             {
                 auto [ guard, volumes ] = singleton< VolumeType >();
-                auto volume = std::make_shared< VolumeType >( std::forward< Args >( args )... );
+                auto volume = std::make_shared< private_construction< VolumeType > >( std::forward< Args >( args )... );
 
                 std::unique_lock lock( guard );
 
@@ -91,17 +105,11 @@ namespace jb
     
     public:
 
-        /** Instanciates virtual volume with policies
-        */
-        using virtual_volume_t = details::virtual_volume< Policy >;
-
-        /** Instanciates virtual volume with policies
-        */
-        using physical_volume_t = details::physical_volume< Policy >;
-
-        using mount_point_t = typename virtual_volume_t::mount_point_t;
-        using key_t = std::basic_string< typename Policy::key_char_t >;
-        using value_t = typename Policy::value_t;
+        using key_t = std::basic_string< typename Policies::key_char_t, typename Policies::key_traits_t >;
+        using value_t = typename Policies::value_t;
+        using virtual_volume_t = details::virtual_volume< Policies >;
+        using physical_volume_t = details::physical_volume< Policies >;
+        using mount_point_t = details::mount_point< Policies >;
 
 
         /** Opens another virtual volume

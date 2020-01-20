@@ -10,12 +10,14 @@ namespace jb
 {
     namespace details
     {
-        template < typename Policy >
+        template < typename Policies >
         class virtual_volume
         {
         public:
 
-            using mount_point_t = mount_point< Policy >;
+            using key_t = std::basic_string< typename Policies::key_char_t, typename Policies::key_traits_t >;
+            using value_t = typename Policies::value_t;
+            using mount_point_t = mount_point< Policies >;
 
             /** Default constructor
 
@@ -28,6 +30,7 @@ namespace jb
             Prevents implicit copy/move construction/assignment
             */
             virtual_volume( virtual_volume&& ) = delete;
+
 
             std::tuple< RetCode, std::weak_ptr< mount_point_t > > mount() noexcept
             {

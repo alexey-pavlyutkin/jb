@@ -6,7 +6,7 @@ namespace jb {
 
     namespace regression {
 
-        TEST( Storage, VirtualVolume_OpenClose )
+        TEST( storage, virtual_volume_open_close )
         {
             storage<> s;
 
@@ -30,7 +30,7 @@ namespace jb {
             EXPECT_TRUE( virtual_volume_handle.expired() );
         }
 
-        TEST( Storage, PhysicalVolume_OpenClose )
+        TEST( storage, physical_volume_open_close )
         {
             storage<> s;
 
@@ -59,7 +59,7 @@ namespace jb {
             EXPECT_TRUE( physical_volume_handle_2.expired() );
         }
 
-        TEST( Storage, CloseAll )
+        TEST( storage, close_all )
         {
             storage<> s;
 
