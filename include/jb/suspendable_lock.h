@@ -22,8 +22,8 @@ namespace jb
             // From the perfomance perspective it's also expected that BasicLockable::lock() and 
             // BasicLockable::unlock() are non-throwing
             //
-            static_assert( noexcept( std::declval< BasicLockable >().lock() ), "BasicLockable::lock() MUST meet noexcept condition" );
-            static_assert( noexcept( std::declval< BasicLockable >().unlock() ), "BasicLockable::unlock() MUST meet noexcept condition" );
+            static_assert( noexcept( std::declval< BasicLockable >().lock() ), "BasicLockable::lock() MUST meet noexcept expectation" );
+            static_assert( noexcept( std::declval< BasicLockable >().unlock() ), "BasicLockable::unlock() MUST meet noexcept expectation" );
 
             BasicLockable* lockable_ = nullptr;
             bool suspended_ = false;
@@ -51,8 +51,7 @@ namespace jb
             {
                 assert( !other.suspended_ );
                 //
-                std::swap( lockable_, other.lockable_ );
-                std::swap( suspended_, other.suspended_ );
+                swap( other );
             }
 
             /** Move assignment...
@@ -71,9 +70,7 @@ namespace jb
                 //
                 lockable_ = nullptr;
                 suspended_ = false;
-                //
-                std::swap( lockable_, other.lockable_ );
-                std::swap( suspended_, other.suspended_ );
+                swap( other );
                 //
                 return *this;
             }

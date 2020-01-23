@@ -15,15 +15,21 @@ namespace jb
                 bool locked() const noexcept { return locked_; }
             };
         }
+
+
+        using suspendable_lock = details::suspendable_lock< Lockable >;
+        using scoped_lock_suspend = typename suspendable_lock::scoped_lock_suspend;
+
+
         TEST( suspendable_lock, base )
         {
             Lockable lockable;
             EXPECT_FALSE( lockable.locked() );
             {
-                details::suspendable_lock< Lockable > lock( lockable );
+                suspendable_lock lock( lockable );
                 EXPECT_TRUE( lockable.locked() );
                 {
-                    details::suspendable_lock< Lockable >::scoped_lock_suspend lock_suspend( lock );
+                    scoped_lock_suspend lock_suspend( lock );
                     EXPECT_FALSE( lockable.locked() );
                 }
                 EXPECT_TRUE( lockable.locked() );
@@ -31,18 +37,19 @@ namespace jb
             EXPECT_FALSE( lockable.locked() );
         }
 
-        TEST( suspendable_lock, move_constuction )
+
+        TEST( suspendable_lock, move_construction )
         {
             Lockable lockable;
             EXPECT_FALSE( lockable.locked() );
             {
-                details::suspendable_lock< Lockable > src( lockable );
+                suspendable_lock src( lockable );
                 EXPECT_TRUE( lockable.locked() );
                 {
-                    details::suspendable_lock< Lockable > dst( std::move( src ) );
+                    suspendable_lock dst( std::move( src ) );
                     EXPECT_TRUE( lockable.locked() );
                     {
-                        details::suspendable_lock< Lockable >::scoped_lock_suspend lock_suspend( dst );
+                        scoped_lock_suspend lock_suspend( dst );
                         EXPECT_FALSE( lockable.locked() );
                     }
                     EXPECT_TRUE( lockable.locked() );
@@ -52,21 +59,22 @@ namespace jb
             EXPECT_FALSE( lockable.locked() );
         }
 
+
         TEST( suspendable_lock, move_assignment )
         {
             Lockable lockable;
             EXPECT_FALSE( lockable.locked() );
             {
-                details::suspendable_lock< Lockable > dst;
+                suspendable_lock dst;
                 EXPECT_FALSE( lockable.locked() );
                 {
-                    details::suspendable_lock< Lockable > src( lockable );
+                    suspendable_lock src( lockable );
                     EXPECT_TRUE( lockable.locked() );
                     //
                     dst = std::move( src );
                     EXPECT_TRUE( lockable.locked() );
                     {
-                        details::suspendable_lock< Lockable >::scoped_lock_suspend lock_suspend( dst );
+                        scoped_lock_suspend lock_suspend( dst );
                         EXPECT_FALSE( lockable.locked() );
                     }
                 }

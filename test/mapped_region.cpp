@@ -55,7 +55,7 @@ namespace jb
 #ifdef _DEBUG
                 EXPECT_DEATH( lock = suspendable_lock( mr ), "false" );
 #else
-                EXPECT_NO_THROW( lock = details::suspendable_lock< details::mapped_region< SharedMutex > >( mr ) );
+                EXPECT_NO_THROW( lock = suspendable_lock( mr ) );
 #endif
                 EXPECT_FALSE( sm.shared_lock_taken() );
                 EXPECT_FALSE( sm.unique_lock_taken() );

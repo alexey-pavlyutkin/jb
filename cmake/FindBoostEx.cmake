@@ -59,7 +59,7 @@ elseif( ${DOWNLOAD_EXTERNALS} )
     #
     if ( WIN32 )
         set( boost_bootstrap "bootstrap.bat" )
-        set( boost_build "b2.exe" )
+        set( boost_build "b2.exe runtime-link=static,shared link=static,shared" )
     elseif ( UNIX )
         set( boost_bootstrap "bootstrap.sh" )
         set( boost_build "b2" )
