@@ -9,7 +9,8 @@ namespace jb
         UnknownError,
         InsufficientMemory,
         InvalidHandle,
-        InvalidFilePath
+        InvalidFilePath,
+        IoError
     };
 }
 

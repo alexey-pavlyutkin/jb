@@ -1,3 +1,7 @@
+#ifndef __JB__SUSPENDABLE_LOCK__H__
+#define __JB__SUSPENDABLE_LOCK__H__
+
+
 #include <utility>
 #include <assert.h>
 
@@ -166,3 +170,5 @@ namespace jb
         };
     }
 }
+
+#endif
