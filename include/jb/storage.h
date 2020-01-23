@@ -109,7 +109,7 @@ namespace jb
         using value_t = typename Policies::value_t;
         using virtual_volume_t = details::virtual_volume< Policies >;
         using physical_volume_t = details::physical_volume< Policies >;
-        using mount_point_t = details::mount_point< Policies >;
+        using mount_point_t = typename virtual_volume_t::mount_point_t;
 
 
         /** Opens another virtual volume
@@ -136,7 +136,7 @@ namespace jb
         */
         [[nodiscard]]
         static std::tuple< RetCode, std::weak_ptr< physical_volume_t > >
-        open_physical_volume( const std::filesystem::path& path, int priority = 0 ) noexcept
+        open_physical_volume( std::filesystem::path&& path, int priority = 0 ) noexcept
         {
             return open< physical_volume_t >( path, priority );
         }

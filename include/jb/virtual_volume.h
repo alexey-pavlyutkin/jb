@@ -8,11 +8,26 @@
 
 namespace jb
 {
+    template < typename Policies >
+    class storage;
+
     namespace details
     {
         template < typename Policies >
         class virtual_volume
         {
+            friend class storage< Policies >;
+
+            using key_t = std::basic_string< typename Policies::key_char_t, typename Policies::key_traits_t >;
+            using mount_point_t = mount_point< Policies >;
+            using mount_point_ptr = std::shared_ptr< mount_point_t >;
+
+            struct private_construction : public mount_point_t
+            {
+                template < typename... Args >
+                private_construction( Args&&... args ) : mount_point_t( std::forward< Args >( args )... ) {}
+            };
+
         public:
 
             using key_t = std::basic_string< typename Policies::key_char_t, typename Policies::key_traits_t >;
