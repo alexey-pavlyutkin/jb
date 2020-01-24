@@ -14,8 +14,8 @@ namespace jb
 
         public:
 
-            explicit runtime_error( RetCode error_code) noexcept
-                : std::runtime_error( "jb storage internal run-time error" )
+            explicit runtime_error( RetCode error_code, const char * what = nullptr ) noexcept
+                : std::runtime_error( what ? what : "internal run-time error detected" )
                 , error_code_( error_code )
             {}
             

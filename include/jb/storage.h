@@ -9,6 +9,7 @@
 #include "exception.h"
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_set>
 #include <tuple>
 #include <filesystem>
@@ -26,6 +27,12 @@ namespace jb
         using key_char_t = char;
         using key_traits_t = std::char_traits< key_char_t >;
         using value_t = std::variant< int, double, std::string, std::wstring >;
+
+        using key_hash_fn = std::hash < std::basic_string< key_char_t, key_traits_t > >;
+        using shared_mutex = std::shared_mutex;
+
+        static constexpr size_t chunk_size = 4096;
+        static constexpr size_t cache_size = 1 << 20;
     };
 
 
