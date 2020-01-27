@@ -16,10 +16,9 @@ target_link_directories( jb INTERFACE ${Boost_LIBRARY_DIRS} )
 #
 get_property( isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG )
 if ( isMultiConfig )
+    
     file( GLOB header_files jb/*.h )
-    add_custom_target( jb-include SOURCES ${header_files} )
-    set_target_properties( jb-include PROPERTIES INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIRS} )
-    if ( MSVC )
-        set_target_properties( jb-include PROPERTIES INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIRS} )
-    endif()
+    add_library( jb-ide STATIC jb-ide.cpp ${header_files} )
+    target_link_libraries( jb-ide PRIVATE jb )
+
 endif()

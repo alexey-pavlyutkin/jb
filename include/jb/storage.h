@@ -17,6 +17,14 @@
 #include <variant>
 #include <string>
 
+#if defined( WIN32 )
+#   include "win32_api.h"
+#elif defined( UNIX )
+#   include "unix_api.h"
+#else
+#   error The target OS is not supported
+#endif
+
 
 namespace jb
 {
@@ -31,7 +39,9 @@ namespace jb
         using key_hash_fn = std::hash < std::basic_string< key_char_t, key_traits_t > >;
         using shared_mutex = std::shared_mutex;
 
-        static constexpr size_t chunk_size = 4096;
+        using api = win32::api;
+
+        static constexpr size_t chunk_size = 256;
         static constexpr size_t cache_size = 1 << 20;
     };
 

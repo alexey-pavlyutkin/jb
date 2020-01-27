@@ -10,6 +10,8 @@ namespace jb
         InsufficientMemory,
         InvalidHandle,
         InvalidFilePath,
+        CannotOpenFile,
+        AlreadyInUse,
         IoError
     };
 }
