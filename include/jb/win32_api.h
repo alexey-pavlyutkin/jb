@@ -33,8 +33,7 @@ namespace jb
 
             struct unmap_area
             {
-                api * api_;
-                void operator()( void* p ) noexcept { api_->unmap( p ); }
+                void operator()( void* p ) noexcept { ::UnmapViewOfFile( p ); }
             };
             using safe_mapped_area = std::unique_ptr< void, unmap_area >;
 
@@ -110,18 +109,11 @@ namespace jb
             api() = delete;
             api( api&& ) = delete;
 
-            explicit api( std::filesystem::path&& path ) try
+            explicit api( std::filesystem::path&& path )
                 : path_( std::move( path ) )
-                , interprocess_lock_( std::move( get_interprocess_lock() ) )
-                , file_( std::move( open_file() ) )
-                , mapping_( std::move( create_mapping() ) )
-            {
-            }
-            catch ( const std::exception & e )
-            {
-                throw;
-            }
-            catch ( ... )
+                , interprocess_lock_( get_interprocess_lock() )
+                , file_( open_file() )
+                , mapping_( create_mapping() )
             {
             }
 
@@ -130,6 +122,11 @@ namespace jb
                 SYSTEM_INFO info;
                 ::GetSystemInfo( &info );
                 return static_cast< size_t >( info.dwAllocationGranularity );
+            }
+
+            bool newly_created() const noexcept
+            {
+                return newly_created_;
             }
 
             size_t size() const
@@ -155,9 +152,9 @@ namespace jb
                 }
             }
 
-            safe_mapped_area map( size_t offset )
+            safe_mapped_area map_page( size_t offset )
             {
-                assert( mapping_.get() );
+                assert( mapping_ );
 
                 // check offset
                 if ( offset % page_size() )
@@ -169,10 +166,9 @@ namespace jb
                     throw std::logic_error( "Requested mapping offset exceeds file size" );
                 }
 
-                // map a page from given offset, assign the pointer to safe variable, and return
                 safe_mapped_area mapped_page{
                     ::MapViewOfFile( mapping_.get(), FILE_MAP_WRITE, offset / ( 1ULL << 32 ), offset % ( 1ULL << 32 ), page_size() ),
-                    unmap_area{ this } 
+                    unmap_area{} 
                 };
 
                 if ( !mapped_page )
@@ -181,11 +177,6 @@ namespace jb
                 }
 
                 return mapped_page;
-            }
-
-            void unmap( void * base_address ) noexcept
-            {
-                ::UnmapViewOfFile( base_address );
             }
         };
     }

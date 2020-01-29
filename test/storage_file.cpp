@@ -65,8 +65,14 @@ namespace jb
                 size_t failed_thread_number = 0;
                 for ( auto& f : futures )
                 {
-                    try { f.get(); }
-                    catch ( const details::runtime_error & e ) { ++failed_thread_number; }
+                    try
+                    {
+                        f.get();
+                    }
+                    catch ( const details::runtime_error & e )
+                    {
+                        ++failed_thread_number;
+                    }
                 }
 
                 EXPECT_EQ( thread_number - 1, failed_thread_number );
@@ -83,7 +89,8 @@ namespace jb
         {
             {
                 std::unique_ptr< storage_file > f;
-                EXPECT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+                ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+                EXPECT_TRUE( f->newly_created() );
                 EXPECT_EQ( storage_file::page_size(), f->size() );
             }
             EXPECT_EQ( storage_file::page_size(), std::filesystem::file_size( "./foo.jb" ) );
@@ -93,7 +100,13 @@ namespace jb
         {
             {
                 std::unique_ptr< storage_file > f;
+                ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+            }
+            {
+                std::unique_ptr< storage_file > f;
                 EXPECT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+                EXPECT_FALSE( f->newly_created() );
+                EXPECT_EQ( storage_file::page_size(), f->size() );
                 EXPECT_NO_THROW( f->grow() );
                 EXPECT_EQ( 2 * storage_file::page_size(), f->size() );
             }
@@ -103,14 +116,14 @@ namespace jb
         TEST_F( storage_file_test, map_invalid_offset )
         {
             std::unique_ptr< storage_file > f;
-            EXPECT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
-            EXPECT_THROW( f->map( 1 ), std::logic_error );
-            EXPECT_THROW( f->map( storage_file::page_size() - 1 ), std::logic_error );
-            EXPECT_THROW( f->map( storage_file::page_size() / 2 ), std::logic_error );
-            EXPECT_THROW( f->map( storage_file::page_size() ), std::logic_error );
+            ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+            EXPECT_THROW( f->map_page( 1 ), std::logic_error );
+            EXPECT_THROW( f->map_page( storage_file::page_size() - 1 ), std::logic_error );
+            EXPECT_THROW( f->map_page( storage_file::page_size() / 2 ), std::logic_error );
+            EXPECT_THROW( f->map_page( storage_file::page_size() ), std::logic_error );
         }
 
-        TEST_F( storage_file_test, map )
+        TEST_F( storage_file_test, map_page )
         {
             {
                 {
@@ -120,24 +133,62 @@ namespace jb
                     ASSERT_NO_THROW( f->grow() );
                 }
 
-                std::unique_ptr< storage_file > f;
-                ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
-
-                for ( auto i = 0; i < 2; ++i )
                 {
-                    decltype( f->map( 0 ) ) mapping_1, mapping_2;
-                    EXPECT_NO_THROW( mapping_1 = f->map( i * storage_file::page_size() ) );
-                    EXPECT_NO_THROW( mapping_2 = f->map( i * storage_file::page_size() ) );
-                    EXPECT_TRUE( mapping_1 );
-                    EXPECT_TRUE( mapping_2 );
-                    //
-                    char* ptr_1 = (char*)mapping_1.get();
-                    char* ptr_2 = (char*)mapping_2.get();
-                    ASSERT_TRUE( ptr_1 && ptr_2 );
-                    //
-                    for ( auto j = 0; j < storage_file::page_size(); ++j, ++ptr_1, ++ptr_2 )
+                    std::unique_ptr< storage_file > f;
+                    ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+
+                    for ( uint64_t page_offset = 0; page_offset < 3 * storage_file::page_size(); page_offset += storage_file::page_size() )
                     {
-                        EXPECT_EQ( *ptr_1, *ptr_2 );
+                        decltype( f->map_page( 0 ) ) page_1, page_2;
+                        EXPECT_NO_THROW( EXPECT_TRUE( page_1 = f->map_page( page_offset ) ) );
+                        EXPECT_NO_THROW( EXPECT_TRUE( page_2 = f->map_page( page_offset ) ) );
+                        //
+                        char* ptr_1 = (char*)page_1.get();
+                        char* ptr_2 = (char*)page_2.get();
+                        ASSERT_TRUE( ptr_1 && ptr_2 );
+                        //
+                        for ( auto i = 0; i < storage_file::page_size(); ++i, ++ptr_1, ++ptr_2 )
+                        {
+                            *ptr_1 = static_cast< char >( i % 0x100 );
+                            EXPECT_EQ( *ptr_1, *ptr_2 );
+                        }
+                    }
+                }
+
+                {
+                    std::FILE* f = std::fopen( "./foo.jb", "rb" );
+                    ASSERT_TRUE( f );
+
+                    for ( uint64_t page_offset = 0; page_offset < 3 * storage_file::page_size(); page_offset += storage_file::page_size() )
+                    {
+                        std::vector< char > buffer( storage_file::page_size(), char( 0 ) );
+                        ASSERT_EQ( 1, std::fread( buffer.data(), buffer.size(), 1, f ) );
+
+                        for ( auto i = 0; i < storage_file::page_size(); ++i )
+                        {
+                            EXPECT_EQ( static_cast< char >( i % 0x100 ), buffer[ i ] );
+                        }
+                    }
+
+                    std::fclose( f );
+                }
+
+                {
+                    std::unique_ptr< storage_file > f;
+                    ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
+
+                    for ( uint64_t page_offset = 0; page_offset < 3 * storage_file::page_size(); page_offset += storage_file::page_size() )
+                    {
+                        decltype( f->map_page( 0 ) ) page;
+                        EXPECT_NO_THROW( EXPECT_TRUE( page = f->map_page( page_offset ) ) );
+                        //
+                        char* ptr = (char*)page.get();
+                        ASSERT_TRUE( ptr );
+                        //
+                        for ( auto i = 0; i < storage_file::page_size(); ++i, ++ptr )
+                        {
+                            EXPECT_EQ( static_cast<char>( i % 0x100 ), *ptr );
+                        }
                     }
                 }
             }
