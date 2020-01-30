@@ -114,7 +114,7 @@ namespace jb
             */
             void lock( size_t spin_count ) noexcept
             {
-                while ( !try_lock( spin_count ) );
+                while ( !try_lock( spin_count ) ) std::this_thread::yield();
             }
 
 
@@ -170,7 +170,7 @@ namespace jb
             */
             void lock_shared( size_t locker_id, size_t spin_count ) noexcept
             {
-                while ( !try_lock_shared( locker_id, spin_count ) );
+                while ( !try_lock_shared( locker_id, spin_count ) ) std::this_thread::yield();
             }
 
 
