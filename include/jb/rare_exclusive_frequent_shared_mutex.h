@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <array>
+#include <functional>
 #include <new>
 #include <thread>
 #include <assert.h>
@@ -17,12 +18,14 @@ namespace jb
 
         The root idea is to split shared locks between multiple atomics, each laying in different cache line,
         thus threads trying to take shared lock won't collide on the same cache line. That reduces probability
-        of cache misses by invalidation and impove system performance.
+        of cache misses by invalidation and optimizes system performance.
         
         Imagine that thread A tries to get shared lock on cache line #1 from CPU1, and thread B gets lock on cache
-        line #2 from CPU2. When A affects #1 CPU1 notifies CPU2 that #1 must be invalidated, but it does not cause
-        cache miss on CPU2 cuz thread B is operating on cache line #2, so CPU2 simply does not give a fuck about
-        cache line #1.
+        line #2 from CPU2. When thread A writes cache line #1 with release semantic, CPU1 notifies CPU2 that
+        #1 was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 invalidates
+        cache line #1 in cache, but it does not cause cache miss on CPU2, just because thread B operates on cache
+        line #2 and does not access cache line #1, i.e. potentionally the most heavy store/load memory barrier becomes
+        flyweight and does not have impact system performance
 
         The cost is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
 
@@ -58,7 +61,7 @@ namespace jb
             bool try_lock() noexcept
             {
                 // try to signal exclusive lock
-                if ( exclusive_lock_.exchange_( 1, std::memory_order_acq_rel ) )
+                if ( exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) )
                 {
                     // if exclusive lock is already signalled - fail
                     return false;
@@ -94,7 +97,7 @@ namespace jb
                 // try to signal exclusive lock
                 for ( size_t spin = 1; ; ++spin )
                 {
-                    if ( !exclusive_lock_.exchange_( 1, std::memory_order_acq_rel ) )
+                    if ( !exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) )
                     {
                         break;
                     }
@@ -155,7 +158,7 @@ namespace jb
             void unlock() noexcept
             {
                 // release exclusive lock
-                exclusive_lock_.store( 0, std::memory_order_release );
+                exclusive_lock_.store( false, std::memory_order_release );
             }
 
 
@@ -272,7 +275,7 @@ namespace jb
                     , spin_count_( spin_count )
                     , taken( true )
                 {
-                    assert( mtx_ );
+                    assert( mtx_ && spin_count_ );
                     mtx_->lock( spin_count_ );
                 }
 
@@ -293,13 +296,11 @@ namespace jb
                 */
                 unique_lock& operator = ( unique_lock&& other ) noexcept
                 {
-                    if ( mtx_ && taken_ ) mtx_->unlock();
-                    //
-                    mtx_ = nullptr;
-                    spin_count_ = 0;
-                    taken_ = false;
-                    //
+                    unique_lock dummy;
+                    swap( dummy );
                     swap( other );
+                    //
+                    return *this;
                 }
 
 
@@ -334,31 +335,99 @@ namespace jb
                 void lock() noexcept
                 {
                     assert( mtx_ && !taken_ );
-                    mtx_->unlock();
+                    mtx_->lock( spin_count_ );
                     taken_ = true;
                 }
             };
 
 
+            /** General-purpose EXCLUSIVE mutex ownership wrapper, provides life-time EXCLUSIVE lock over associated mutex
+            */
             class shared_lock
             {
                 rare_exclusive_frequent_shared_mutex* mtx_ = nullptr;
-                size_t id = 0;
+                size_t id_ = 0;
                 size_t spin_count_ = 0;
                 bool taken_ = false;
 
             public:
 
+                /** Default constructor, creates dummy instance without associated mutex
+
+                @throw nothing
+                */
                 shared_lock() noexcept = default;
 
+
+                /** Move constructor, creates an instance from another one, make origin instance dummy
+
+                @param [in/out] other - an instance to move from
+                @throw nothing
+                */
                 shared_lock( shared_lock&& other ) noexcept
                 {
                     swap( other );
                 }
 
-                template < typename Locker >
-                explicit shared_lock( rare_exclusive_frequent_shared_mutex& mtx, const Locker & locker, )
 
+                /** Creates new instance, associates it with given mutex, and takes SHARED lock on it
+
+                @param [in/out] mtx - mutex to be locked
+                @param [in] locker - id of the object requesting lock
+                @param [in] spin_count - number of lock tries before to yeild other threads
+                @throw nothing
+                */
+                template < typename Locker >
+                explicit shared_lock( rare_exclusive_frequent_shared_mutex& mtx, const Locker& locker, size_t spin_count = 0x1000 ) noexcept
+                    : mtx_( &mtx )
+                    , id_( std::hash< Locker >{}( locker ) )
+                    , spin_count_( spin_count )
+                    , taken_( true )
+                {
+                    assert( mtx_ && spin_count_ );
+                    mtx_->lock_shared( id_, spin_count_ );
+                }
+
+                ~shared_lock()
+                {
+                    if ( mtx_ && taken_ ) mtx_->unlock_shared( id_ );
+                }
+
+                shared_lock& operator = ( shared_lock&& other ) noexcept
+                {
+                    shared_lock dummy;
+                    swap( dummy );
+                    swap( other );
+                    //
+                    return *this;
+                }
+
+                void swap( shared_lock& other ) noexcept
+                {
+                    std::swap( mtx_, other.mtx_ );
+                    std::swap( id_, other.id_ );
+                    std::swap( spin_count_, other.spin_count_ );
+                    std::swap( taken_, other.taken_ );
+                }
+
+                /** Releases hold lock over associated mutex
+
+                @throw nothing
+                */
+                void unlock() noexcept
+                {
+                    assert( mtx_ && taken_ );
+                    mtx_->unlock_shared( id_ );
+                    taken_ = false;
+                }
+
+
+                void lock() noexcept
+                {
+                    assert( mtx_ && !taken_ );
+                    mtx_->lock_shared( id_, spin_count_ );
+                    taken_ = true;
+                }
             };
         };
     }
