@@ -22,11 +22,12 @@ namespace jb
         
         Imagine that thread A is trying to get shared lock on cache line #1 from CPU1, and thread B is getting lock on
         cache line #2 from CPU2. When thread A writes cache line #1 with release semantic, CPU1 notifies CPU2 that #1
-        was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 just drops cache
-        line #1 from the cache, but it does not cause a cache miss on CPU2, just because thread B operates on untouched
+        was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 drops cache
+        line #1 from the cache, but it does not cause a cache miss on CPU2 because thread B operates on untouched
         cache line #2 and does not access dropped cache line #1, i.e. potentionally the most heavy store/load memory
-        barrier becomes really flyweight and does not have impact system performance. Also an atomic that represents exclusive
-        lock is accessed only by reading, i.e. there is not a need to synchronize the cache line between CPU's at all.
+        barrier becomes really flyweight and does not have impact system performance. Also an atomic that represents 
+        exclusive lock is accessed only by reading, i.e. there is not a need to synchronize corresponding  cache line
+        between CPU's at all.
 
         The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
 
@@ -62,6 +63,7 @@ namespace jb
 
             aligned_atomic< bool > exclusive_lock_;
             std::array< aligned_atomic< size_t >, SharedLockCount > shared_locks_;
+            static constexpr size_t spin_count_per_lock = 0x1000;
 
         public:
 
@@ -87,7 +89,7 @@ namespace jb
             bool try_lock( size_t spin_count = 0 ) noexcept
             {
                 size_t spin = 0;
-                spin_count = spin_count ? spin_count : 0x1000 * SharedLockCount;
+                spin_count = spin_count ? spin_count : spin_count_per_lock * SharedLockCount;
 
                 // try to signal exclusive lock
                 while ( true )
@@ -111,11 +113,14 @@ namespace jb
                     auto sr_it = shared_released.begin();
                     for ( ; sl_it != shared_locks_.end(); ++sl_it, ++sr_it )
                     {
-                        // if we've already seen that shared lock released -- simply skip it, it could be taken later cuz we had signalled exclusive lock
+                        //
+                        // if we've already seen that shared lock released -- simply skip it, 
+                        // it could not have been taken again cuz we had signalled exclusive lock
+                        //
                         if ( *sr_it ) continue;
 
                         // check if shared lock got released
-                        if ( sl_it->load( std::memory_order_acquire ) )
+                        if ( 0 != sl_it->load( std::memory_order_acquire ) )
                         {
                             // the lock still taken -> yeild other threads if spins exhausted 
                             if ( 0 == ++spin % spin_count )
@@ -131,7 +136,11 @@ namespace jb
                         }
                     }
 
-                    // if there is not taken shared locks anymore - succeeded
+                    //
+                    // if there is not taken shared locks anymore - succeeded, the last sync operation on the
+                    // control flow was sl_it->load( std::memory_order_acquire ), so the whole function guaratnies
+                    // ACQUIRE semantic
+                    //
                     if ( std::find( shared_released.begin(), shared_released.end(), false ) == shared_released.end() ) return true;
                 }
             }
@@ -142,8 +151,9 @@ namespace jb
             @param [in] spin_count - number of tries before to yeild other threads
             @throw nothing
             */
-            void lock( size_t spin_count ) noexcept
+            void lock( size_t spin_count = 0 ) noexcept
             {
+                spin_count = spin_count ? spin_count : spin_count_per_lock * SharedLockCount;
                 while ( !try_lock( spin_count ) ) std::this_thread::yield();
             }
 
@@ -154,7 +164,7 @@ namespace jb
             */
             void unlock() noexcept
             {
-                // release exclusive lock
+                // release exclusive lock using RELEASE semantic
                 exclusive_lock_.store( false, std::memory_order_release );
             }
 
@@ -168,7 +178,7 @@ namespace jb
             bool try_lock_shared( size_t locker_id, size_t spin_count = 0 ) noexcept
             {
                 size_t spin = 0;
-                spin_count = spin_count ? spin_count : 0x1000;
+                spin_count = spin_count ? spin_count : spin_count_per_lock;
 
                 // hash shared lock by locker id
                 auto& shared_lock = shared_locks_[ locker_id % SharedLockCount ];
@@ -188,7 +198,9 @@ namespace jb
                     }
                 }
 
-                // succeeded
+                //
+                // succeeded, the last sync operation on the control flow was exclusive_lock_.load( std::memory_order_acquire ),
+                // therefore the function guaranties ACQUIRE semantic
                 return true;
             }
 
@@ -199,8 +211,9 @@ namespace jb
             @param [in] spin_count - number of tries before to yeild other threads
             @throw nothing
             */
-            void lock_shared( size_t locker_id, size_t spin_count ) noexcept
+            void lock_shared( size_t locker_id, size_t spin_count = 0 ) noexcept
             {
+                spin_count = spin_count ? spin_count : spin_count_per_lock;
                 while ( !try_lock_shared( locker_id, spin_count ) ) std::this_thread::yield();
             }
 
@@ -251,12 +264,12 @@ namespace jb
                 @param [in] spin_count - number of lock tries before to yeild other threads
                 @throw nothing
                 */
-                explicit unique_lock( rare_exclusive_frequent_shared_mutex& mtx, size_t spin_count = 0x1000 ) noexcept
+                explicit unique_lock( rare_exclusive_frequent_shared_mutex& mtx, size_t spin_count = 0 ) noexcept
                     : mtx_( &mtx )
                     , spin_count_( spin_count )
-                    , taken( true )
+                    , taken_( true )
                 {
-                    assert( mtx_ && spin_count_ );
+                    assert( mtx_ );
                     mtx_->lock( spin_count_ );
                 }
 
@@ -361,13 +374,13 @@ namespace jb
                 @throw nothing
                 */
                 template < typename Locker >
-                explicit shared_lock( rare_exclusive_frequent_shared_mutex& mtx, const Locker& locker, size_t spin_count = 0x1000 ) noexcept
+                explicit shared_lock( rare_exclusive_frequent_shared_mutex& mtx, const Locker& locker, size_t spin_count = 0 ) noexcept
                     : mtx_( &mtx )
                     , id_( std::hash< Locker >{}( locker ) )
                     , spin_count_( spin_count )
                     , taken_( true )
                 {
-                    assert( mtx_ && spin_count_ );
+                    assert( mtx_ );
                     mtx_->lock_shared( id_, spin_count_ );
                 }
 
