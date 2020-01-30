@@ -58,64 +58,23 @@ namespace jb
             @retval true if the operation succeeded
             @throw nothing
             */
-            bool try_lock() noexcept
+            bool try_lock( size_t spin_count ) noexcept
             {
+                size_t spin = 0;
+
                 // try to signal exclusive lock
-                if ( exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) )
+                while ( true )
                 {
-                    // if exclusive lock is already signalled - fail
-                    return false;
-                }
-                // exclusive lock signalled!
+                    if ( !exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) ) break;
 
-                // through all the shared locks
-                for ( auto& shared_lock : shared_locks_ )
-                {
-                    // if shared lock signalled
-                    if ( shared_lock.load( std::memory_order_acquire ) )
-                    {
-                        // release exclusive lock...
-                        exclusive_lock_.store( 0, std::memory_order_release );
-
-                        // ...and fail
-                        return false;
-                    }
-                }
-
-                // succeeded
-                return true;
-            }
-
-
-            /** Takes EXCLUSIVE lock over the mutex
-
-            @param [in] spin_count - number of tries before to yeild other threads
-            @throw nothing
-            */
-            void lock( size_t spin_count = 0x1000 ) noexcept
-            {
-                // try to signal exclusive lock
-                for ( size_t spin = 1; ; ++spin )
-                {
-                    if ( !exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) )
-                    {
-                        break;
-                    }
-
-                    // yeild other threads if spins exhausted 
-                    if ( 0 == spin % spin_count )
-                    {
-                        std::this_thread::yield();
-                    }
+                    // if spins exhausted - fail
+                    if ( 0 == ++spin % spin_count ) return false;
                 }
                 // exclusive lock signalled!
 
                 // mark all shared locks as taken
                 std::array< bool, SharedLockCount > shared_released;
                 shared_released.fill( false );
-
-                // spin counter
-                size_t spin = 1;
 
                 while ( true )
                 {
@@ -131,7 +90,8 @@ namespace jb
                             // the lock still taken -> yeild other threads if spins exhausted 
                             if ( 0 == ++spin % spin_count )
                             {
-                                std::this_thread::yield();
+                                exclusive_lock_.store( false, std::memory_order_release );
+                                return false;
                             }
                         }
                         else
@@ -141,13 +101,20 @@ namespace jb
                         }
                     }
 
-                    // if there is not taken shared locks anymore
-                    if ( !std::find( shared_released.begin(), shared_released.end(), false ) )
-                    {
-                        // succeeded
-                        break;
-                    }
+                    // if there is not taken shared locks anymore - succeeded
+                    if ( !std::find( shared_released.begin(), shared_released.end(), false ) ) return true;
                 }
+            }
+
+
+            /** Takes EXCLUSIVE lock over the mutex
+
+            @param [in] spin_count - number of tries before to yeild other threads
+            @throw nothing
+            */
+            void lock( size_t spin_count ) noexcept
+            {
+                while ( !try_lock( spin_count ) );
             }
 
 
@@ -168,37 +135,10 @@ namespace jb
             @retval true if succeeded
             @throw nothing
             */
-            bool try_lock_shared( size_t locker_id ) noexcept
+            bool try_lock_shared( size_t locker_id, size_t spin_count ) noexcept
             {
-                // hash shared lock by locker id
-                auto& shared_lock = shared_locks_[ locker_id % SharedLockCount ];
+                size_t spin = 0;
 
-                // acquire shared lock
-                shared_lock.fetch_add( 1, std::memory_order_acq_rel );
-
-                // if exclusive lock taken
-                if ( exclusive_lock_.load( std::memory_order_acquire ) )
-                {
-                    // release shared lock
-                    shared_lock.fetch_sub( 1, std::memory_order_acq_rel );
-
-                    // failed
-                    return false;
-                }
-
-                // succeeded
-                return true;
-            }
-
-
-            /** Takes shared lock over the mutex
-
-            @param [in] locker_id - an identifier of the object requesting shared lock (uniqueness NOT required)
-            @param [in] spin_count - number of tries before to yeild other threads
-            @throw nothing
-            */
-            void lock_shared( size_t locker_id, size_t spin_count = 0x1000 ) noexcept
-            {
                 // hash shared lock by locker id
                 auto& shared_lock = shared_locks_[ locker_id % SharedLockCount ];
 
@@ -209,18 +149,28 @@ namespace jb
                 for ( size_t spin = 1; exclusive_lock_.load( std::memory_order_acquire ); ++spin )
                 {
                     // if spin count exhausted
-                    if ( 0 == spin % spin_count )
+                    if ( 0 == ++spin % spin_count )
                     {
-                        // suspend shared lock
+                        // release shared lock and fail
                         shared_lock.fetch_sub( 1, std::memory_order_acq_rel );
-
-                        // yield other threads
-                        std::this_thread::yield();
-
-                        // acquire shared lock again
-                        shared_lock.fetch_add( 1, std::memory_order_acq_rel );
+                        return false;
                     }
                 }
+
+                // succeeded
+                return true;
+            }
+
+
+            /** Takes SHARED lock over the mutex
+
+            @param [in] locker_id - an identifier of the object requesting shared lock (uniqueness NOT required)
+            @param [in] spin_count - number of tries before to yeild other threads
+            @throw nothing
+            */
+            void lock_shared( size_t locker_id, size_t spin_count ) noexcept
+            {
+                while ( !try_lock_shared( locker_id, spin_count ) );
             }
 
 
