@@ -18,16 +18,17 @@ namespace jb
 
         The root idea is to split shared locks between multiple atomics, each laying in different cache line,
         thus threads trying to take shared lock won't collide on the same cache line. That reduces probability
-        of cache misses by invalidation and optimizes system performance.
+        of invalidation cache misses and optimizes the system performance.
         
-        Imagine that thread A tries to get shared lock on cache line #1 from CPU1, and thread B gets lock on cache
-        line #2 from CPU2. When thread A writes cache line #1 with release semantic, CPU1 notifies CPU2 that
-        #1 was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 invalidates
-        cache line #1 in cache, but it does not cause cache miss on CPU2, just because thread B operates on cache
-        line #2 and does not access cache line #1, i.e. potentionally the most heavy store/load memory barrier becomes
-        flyweight and does not have impact system performance
+        Imagine that thread A is trying to get shared lock on cache line #1 from CPU1, and thread B is getting lock on
+        cache line #2 from CPU2. When thread A writes cache line #1 with release semantic, CPU1 notifies CPU2 that #1
+        was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 just drops cache
+        line #1 from the cache, but it does not cause a cache miss on CPU2, just because thread B operates on untouched
+        cache line #2 and does not access dropped cache line #1, i.e. potentionally the most heavy store/load memory
+        barrier becomes really flyweight and does not have impact system performance. Also an atomic that represents exclusive
+        lock is accessed only by reading, i.e. there is not a need to synchronize the cache line between CPU's at all.
 
-        The cost is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
+        The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
 
         @tparam SharedLockCount - number of atomics to represent shared lock
         */
@@ -36,10 +37,35 @@ namespace jb
         {
             static_assert( SharedLockCount );
 
-            alignas( std::hardware_destructive_interference_size ) std::atomic_bool exclusive_lock_;
-            std::array< alignas( std::hardware_destructive_interference_size ) std::atomic_size_t, SharedLockCount > shared_locks_;
+            template < typename T >
+            struct alignas( std::hardware_destructive_interference_size ) aligned_atomic
+            {
+                static_assert( std::atomic< T >::is_always_lock_free );
+
+                std::atomic< T > a_ = 0;
+
+                template < typename... Args >
+                auto exchange( Args &&... args ) noexcept { return a_.exchange( std::forward< Args >( args )... ); }
+
+                template < typename... Args >
+                auto load( Args &&... args ) noexcept { return a_.load( std::forward< Args >( args )... ); }
+
+                template < typename... Args >
+                auto store( Args&&... args ) noexcept { return a_.store( std::forward< Args >( args )... ); }
+
+                template < typename... Args >
+                auto fetch_add( Args&&... args ) noexcept { return a_.fetch_add( std::forward< Args >( args )... ); }
+
+                template < typename... Args >
+                auto fetch_sub( Args&&... args ) noexcept { return a_.fetch_sub( std::forward< Args >( args )... ); }
+            };
+
+            aligned_atomic< bool > exclusive_lock_;
+            std::array< aligned_atomic< size_t >, SharedLockCount > shared_locks_;
 
         public:
+
+            static constexpr size_t shared_lock_count() noexcept { return SharedLockCount; }
 
             /** Default constructor, initializes an instance to unlocked state
 
@@ -58,14 +84,15 @@ namespace jb
             @retval true if the operation succeeded
             @throw nothing
             */
-            bool try_lock( size_t spin_count ) noexcept
+            bool try_lock( size_t spin_count = 0 ) noexcept
             {
                 size_t spin = 0;
+                spin_count = spin_count ? spin_count : 0x1000 * SharedLockCount;
 
                 // try to signal exclusive lock
                 while ( true )
                 {
-                    if ( !exclusive_lock_.exchange_( true, std::memory_order_acq_rel ) ) break;
+                    if ( !exclusive_lock_.exchange( true, std::memory_order_acq_rel ) ) break;
 
                     // if spins exhausted - fail
                     if ( 0 == ++spin % spin_count ) return false;
@@ -76,10 +103,13 @@ namespace jb
                 std::array< bool, SharedLockCount > shared_released;
                 shared_released.fill( false );
 
+                // wait until all shared locks get released
                 while ( true )
                 {
                     // throught all shared locks
-                    for ( auto sl_it = shared_locks_.begin(), sr_it = shared_released.begin(); sl_it != shared_locks_.end(); ++sl_it, ++sr_it )
+                    auto sl_it = shared_locks_.begin();
+                    auto sr_it = shared_released.begin();
+                    for ( ; sl_it != shared_locks_.end(); ++sl_it, ++sr_it )
                     {
                         // if we've already seen that shared lock released -- simply skip it, it could be taken later cuz we had signalled exclusive lock
                         if ( *sr_it ) continue;
@@ -102,7 +132,7 @@ namespace jb
                     }
 
                     // if there is not taken shared locks anymore - succeeded
-                    if ( !std::find( shared_released.begin(), shared_released.end(), false ) ) return true;
+                    if ( std::find( shared_released.begin(), shared_released.end(), false ) == shared_released.end() ) return true;
                 }
             }
 
@@ -135,9 +165,10 @@ namespace jb
             @retval true if succeeded
             @throw nothing
             */
-            bool try_lock_shared( size_t locker_id, size_t spin_count ) noexcept
+            bool try_lock_shared( size_t locker_id, size_t spin_count = 0 ) noexcept
             {
                 size_t spin = 0;
+                spin_count = spin_count ? spin_count : 0x1000;
 
                 // hash shared lock by locker id
                 auto& shared_lock = shared_locks_[ locker_id % SharedLockCount ];
