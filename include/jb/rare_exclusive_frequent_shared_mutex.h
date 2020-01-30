@@ -286,11 +286,12 @@ namespace jb
                     if ( mtx_ && taken_ ) mtx_->unlock();
                 }
 
-                /** Assignes an instance by moving content from given one.
-                
+                /** Assignes an instance by moving content from given one
+
                 Makes original instance becomes dummy. If target instance holds lock over an mutex,
                 releases the lock
 
+                @param [in/out] other - an instance to be moved from
                 @retval target instance as lvalue
                 @throw nothing
                 */
@@ -304,8 +305,9 @@ namespace jb
                 }
 
 
-                /* Swap an instance with another one competely swaping their content
+                /* Swap an instance with another one competely exchanging their content
 
+                @param [in/out] other - an instance to be swapped with
                 @throw nothing
                 */
                 void swap( unique_lock& other ) noexcept
@@ -341,7 +343,7 @@ namespace jb
             };
 
 
-            /** General-purpose EXCLUSIVE mutex ownership wrapper, provides life-time EXCLUSIVE lock over associated mutex
+            /** General-purpose SHARED mutex ownership wrapper, provides life-time EXCLUSIVE lock over associated mutex
             */
             class shared_lock
             {
@@ -388,11 +390,24 @@ namespace jb
                     mtx_->lock_shared( id_, spin_count_ );
                 }
 
+
+                /** Destructor, releases SHARED lock on associated mutex if taken
+                */
                 ~shared_lock()
                 {
                     if ( mtx_ && taken_ ) mtx_->unlock_shared( id_ );
                 }
 
+
+                /** Assignes an instance by moving content from given one
+
+                Makes original instance becomes dummy. If target instance holds lock over an mutex,
+                releases the lock
+
+                @param [in/out] other - an instance to be moved from
+                @retval target instance as lvalue
+                @throw nothing
+                */
                 shared_lock& operator = ( shared_lock&& other ) noexcept
                 {
                     shared_lock dummy;
@@ -402,6 +417,12 @@ namespace jb
                     return *this;
                 }
 
+
+                /* Swap an instance with another one competely exchanging their content
+
+                @param [in/out] other - an instance to be swapped with
+                @throw nothing
+                */
                 void swap( shared_lock& other ) noexcept
                 {
                     std::swap( mtx_, other.mtx_ );
@@ -409,6 +430,7 @@ namespace jb
                     std::swap( spin_count_, other.spin_count_ );
                     std::swap( taken_, other.taken_ );
                 }
+
 
                 /** Releases hold lock over associated mutex
 
@@ -422,6 +444,10 @@ namespace jb
                 }
 
 
+                /** Re-takes lock over associated mutex
+
+                @throw nothing
+                */
                 void lock() noexcept
                 {
                     assert( mtx_ && !taken_ );
