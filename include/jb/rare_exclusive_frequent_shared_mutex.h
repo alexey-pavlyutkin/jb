@@ -25,11 +25,12 @@ namespace jb
         was modified. Later when thread B on CPU2 applies a read operation with acquire semantic, CPU2 drops cache
         line #1 from the cache, but it does not cause a cache miss on CPU2 because thread B operates on untouched
         cache line #2 and does not access dropped cache line #1, i.e. potentionally the most heavy store/load memory
-        barrier becomes really flyweight and does not have impact system performance. Also an atomic that represents 
+        barrier becomes really flyweight and does not impact system performance. Also an atomic that represents 
         exclusive lock is accessed only by reading, i.e. there is not a need to synchronize corresponding  cache line
         between CPU's at all.
 
-        The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
+        The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all the atomics
+        holding shared locks
 
         @tparam SharedLockCount - number of atomics to represent shared lock
         */
@@ -153,7 +154,6 @@ namespace jb
             */
             void lock( size_t spin_count = 0 ) noexcept
             {
-                spin_count = spin_count ? spin_count : spin_count_per_lock * SharedLockCount;
                 while ( !try_lock( spin_count ) ) std::this_thread::yield();
             }
 
@@ -213,7 +213,6 @@ namespace jb
             */
             void lock_shared( size_t locker_id, size_t spin_count = 0 ) noexcept
             {
-                spin_count = spin_count ? spin_count : spin_count_per_lock;
                 while ( !try_lock_shared( locker_id, spin_count ) ) std::this_thread::yield();
             }
 
