@@ -98,107 +98,101 @@ namespace jb
                     mtx.unlock_shared( 0 );
                     return false;
                 }
+                else
                 {
                     return true;
                 }
             };
 
             {
-                unique_lock lock_1;
-                EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
-                {
-                    unique_lock lock_2;
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
-                    {
-                        unique_lock lock_3( mtx );
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-                    }
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
+                unique_lock lock_1( mtx );
+                EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+            }
+            EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
 
-                    unique_lock lock_4( mtx );
-                    EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-                    {
-                        unique_lock lock_5( std::move( lock_4 ) );
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-                    }
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
+            unique_lock lock_2( mtx );
+            EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+            {
+                unique_lock lock_3( std::move( lock_2 ) );
+                EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+            }
+            EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
 
-                    {
-                        unique_lock lock_6( mtx );
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-
-                        lock_6.unlock();
-                        EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
-
-                        lock_6.lock();
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-
-                        lock_2 = std::move( lock_6 );
-                    }
-                    EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
-
-                    lock_1.swap( lock_2 );
-                }
+            unique_lock lock_4;
+            {
+                unique_lock lock_5( mtx );
                 EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
 
-                lock_1 = unique_lock{};
+                lock_5.unlock();
                 EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
+
+                lock_5.lock();
+                EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+
+                lock_4 = std::move( lock_5 );
             }
+            EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+
+            unique_lock lock_6;
+            lock_6.swap( lock_4 );
+            EXPECT_TRUE( std::async( std::launch::async, check_lock ).get() );
+
+            lock_6 = unique_lock{};
+            EXPECT_FALSE( std::async( std::launch::async, check_lock ).get() );
         }
+
 
         TEST_F( rare_exclusive_frequent_shared_mutex_test, shared_lock )
         {
             shared_mutex mtx;
 
-            auto check_lock_shared = [&]() noexcept {
+            auto check_shared_lock = [&]() noexcept {
                 if ( mtx.try_lock() )
                 {
                     mtx.unlock();
                     return false;
                 }
+                else
                 {
                     return true;
                 }
             };
 
             {
-                shared_lock lock_1;
-                EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
-                {
-                    shared_lock lock_2;
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
-                    {
-                        shared_lock lock_3( mtx, 0 );
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock_shared ).get() );
-                    }
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                    shared_lock lock_4( mtx, 1 );
-                    {
-                        shared_lock lock_5( std::move( lock_4 ) );
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock_shared ).get() );
-                    }
-                    EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                    {
-                        shared_lock lock_6( mtx, 2 );
-                        lock_6.unlock();
-                        EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                        lock_6.lock();
-                        EXPECT_TRUE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                        lock_2 = std::move( lock_6 );
-                    }
-                    EXPECT_TRUE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                    lock_1.swap( lock_2 );
-                }
-                EXPECT_TRUE( std::async( std::launch::async, check_lock_shared ).get() );
-
-                lock_1 = shared_lock{};
-                EXPECT_FALSE( std::async( std::launch::async, check_lock_shared ).get() );
+                shared_lock lock_1( mtx, 0 );
+                EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
             }
+            EXPECT_FALSE( std::async( std::launch::async, check_shared_lock ).get() );
+
+            shared_lock lock_2( mtx, 0 );
+            EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+            {
+                shared_lock lock_3( std::move( lock_2 ) );
+                EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+            }
+            EXPECT_FALSE( std::async( std::launch::async, check_shared_lock ).get() );
+
+            shared_lock lock_4;
+            {
+                shared_lock lock_5( mtx, 0 );
+                EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+
+                lock_5.unlock();
+                EXPECT_FALSE( std::async( std::launch::async, check_shared_lock ).get() );
+
+                lock_5.lock();
+                EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+
+                lock_4 = std::move( lock_5 );
+            }
+            EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+
+            shared_lock lock_6;
+            lock_6.swap( lock_4 );
+            EXPECT_TRUE( std::async( std::launch::async, check_shared_lock ).get() );
+
+            lock_6 = shared_lock{};
+            EXPECT_FALSE( std::async( std::launch::async, check_shared_lock ).get() );
         }
     }
 }
