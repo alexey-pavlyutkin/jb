@@ -28,8 +28,7 @@ namespace jb
         exclusive lock is accessed only by reading, i.e. there is not a need to synchronize corresponding cache line
         between CPU's at all.
 
-        The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all the atomics
-        holding shared locks
+        The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all shared lock atomics
 
         @tparam SharedLockCount - number of atomics to represent shared lock
         */
@@ -130,6 +129,7 @@ namespace jb
             */
             void lock( size_t spin_count = 0 ) noexcept
             {
+                spin_count = spin_count ? spin_count : spin_count_per_lock * SharedLockCount;
                 while ( !try_lock( spin_count ) ) std::this_thread::yield();
             }
 
@@ -189,6 +189,7 @@ namespace jb
             */
             void lock_shared( size_t locker_id, size_t spin_count = 0 ) noexcept
             {
+                spin_count = spin_count ? spin_count : spin_count_per_lock;
                 while ( !try_lock_shared( locker_id, spin_count ) ) std::this_thread::yield();
             }
 
