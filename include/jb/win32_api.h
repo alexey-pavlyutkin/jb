@@ -35,9 +35,8 @@ namespace jb
             {
                 void operator()( void* p ) noexcept { ::UnmapViewOfFile( p ); }
             };
-            using safe_mapped_area = std::unique_ptr< void, unmap_area >;
 
-            using shared_lock = int;
+            //using shared_lock = int;
 
             std::filesystem::path path_;
             bool newly_created_ = false;
@@ -151,6 +150,8 @@ namespace jb
                     throw details::runtime_error( RetCode::IoError, "Unable to resize file" );
                 }
             }
+
+            using safe_mapped_area = std::unique_ptr< void, unmap_area >;
 
             safe_mapped_area map_page( size_t offset )
             {

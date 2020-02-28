@@ -12,7 +12,8 @@ namespace jb
         InvalidFilePath,
         CannotOpenFile,
         AlreadyInUse,
-        IoError
+        IoError,
+        Overloaded
     };
 }
 

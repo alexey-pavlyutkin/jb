@@ -2,10 +2,9 @@
 #define __JB__RARE_EXCLUSIVE_FREQUENT_SHARED_MUTEX__H__
 
 
-#include <atomic>
+#include "aligned_atomic.h"
 #include <array>
 #include <functional>
-#include <new>
 #include <thread>
 #include <assert.h>
 
@@ -26,7 +25,7 @@ namespace jb
         line #1 from the cache, but it does not cause a cache miss on CPU2 because thread B operates on untouched
         cache line #2 and does not access dropped cache line #1, i.e. potentionally the most heavy store/load memory
         barrier becomes really flyweight and does not impact system performance. Also an atomic that represents 
-        exclusive lock is accessed only by reading, i.e. there is not a need to synchronize corresponding  cache line
+        exclusive lock is accessed only by reading, i.e. there is not a need to synchronize corresponding cache line
         between CPU's at all.
 
         The cost of this optimization is extremely heavy exclusive lock, cuz it requires to exam all the atomics
@@ -38,29 +37,6 @@ namespace jb
         class rare_exclusive_frequent_shared_mutex
         {
             static_assert( SharedLockCount );
-
-            template < typename T >
-            struct alignas( std::hardware_destructive_interference_size ) aligned_atomic
-            {
-                static_assert( std::atomic< T >::is_always_lock_free );
-
-                std::atomic< T > a_ = 0;
-
-                template < typename... Args >
-                auto exchange( Args &&... args ) noexcept { return a_.exchange( std::forward< Args >( args )... ); }
-
-                template < typename... Args >
-                auto load( Args &&... args ) noexcept { return a_.load( std::forward< Args >( args )... ); }
-
-                template < typename... Args >
-                auto store( Args&&... args ) noexcept { return a_.store( std::forward< Args >( args )... ); }
-
-                template < typename... Args >
-                auto fetch_add( Args&&... args ) noexcept { return a_.fetch_add( std::forward< Args >( args )... ); }
-
-                template < typename... Args >
-                auto fetch_sub( Args&&... args ) noexcept { return a_.fetch_sub( std::forward< Args >( args )... ); }
-            };
 
             aligned_atomic< bool > exclusive_lock_;
             std::array< aligned_atomic< size_t >, SharedLockCount > shared_locks_;
