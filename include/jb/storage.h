@@ -28,6 +28,11 @@
 
 namespace jb
 {
+    namespace regression
+    {
+        class test_base;
+    }
+
     /** Abstracts a set of compile-time settings
     */
     struct default_policies
@@ -53,6 +58,8 @@ namespace jb
     template < typename Policies = default_policies >
     class storage
     {
+        friend class regression::test_base;
+
         /** Provides abstract volume collection
 
         @tparam VolumeType - volume type

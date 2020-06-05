@@ -107,7 +107,7 @@ namespace jb
                 EXPECT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
                 EXPECT_FALSE( f->newly_created() );
                 EXPECT_EQ( storage_file::page_size(), f->size() );
-                EXPECT_NO_THROW( f->grow() );
+                EXPECT_NO_THROW( f->grow( 0 ) );
                 EXPECT_EQ( 2 * storage_file::page_size(), f->size() );
             }
             EXPECT_EQ( 2 * storage_file::page_size(), std::filesystem::file_size( "./foo.jb" ) );
@@ -129,8 +129,8 @@ namespace jb
                 {
                     std::unique_ptr< storage_file > f;
                     ASSERT_NO_THROW( f = std::make_unique< storage_file >( "./foo.jb" ) );
-                    ASSERT_NO_THROW( f->grow() );
-                    ASSERT_NO_THROW( f->grow() );
+                    ASSERT_NO_THROW( f->grow( 0 ) );
+                    ASSERT_NO_THROW( f->grow( 0 ) );
                 }
 
                 {

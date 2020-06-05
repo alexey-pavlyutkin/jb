@@ -4,15 +4,10 @@
 
 #include "ret_codes.h"
 #include "exception.h"
-#include <memory>
+#include "rare_exclusive_frequent_shared_mutex.h"
 #include <filesystem>
-#include <atomic>
-#include <new>
-#include <array>
 #include <cstdio>
 #include <exception>
-#include <thread>
-#include <functional>
 #include <windows.h>
 
 
@@ -29,20 +24,29 @@ namespace jb
                     if ( INVALID_HANDLE_VALUE != handle ) ::CloseHandle( handle );
                 }
             };
-            using safe_handle = std::unique_ptr < void, close_handle >;
 
             struct unmap_area
             {
                 void operator()( void* p ) noexcept { ::UnmapViewOfFile( p ); }
             };
 
-            //using shared_lock = int;
+            using safe_handle = std::unique_ptr < void, close_handle >;
+
+            static size_t get_page_size() noexcept
+            {
+                SYSTEM_INFO info;
+                ::GetSystemInfo( &info );
+                return static_cast<size_t>( info.dwAllocationGranularity );
+            }
 
             std::filesystem::path path_;
             bool newly_created_ = false;
+            inline static const size_t page_size_ = get_page_size();
             safe_handle interprocess_lock_;
             safe_handle file_;
             safe_handle mapping_;
+            details::rare_exclusive_frequent_shared_mutex<> resize_guard_;
+            size_t size_;
 
             safe_handle get_interprocess_lock()
             {
@@ -118,9 +122,7 @@ namespace jb
 
             static size_t page_size() noexcept
             {
-                SYSTEM_INFO info;
-                ::GetSystemInfo( &info );
-                return static_cast< size_t >( info.dwAllocationGranularity );
+                return page_size_;
             }
 
             bool newly_created() const noexcept
@@ -139,16 +141,31 @@ namespace jb
                 return static_cast<size_t>( sz.QuadPart );
             }
 
-            void grow()
+            bool grow( size_t current_size )
             {
                 assert( INVALID_HANDLE_VALUE != file_.get() );
 
-                LARGE_INTEGER inc;
-                inc.QuadPart = static_cast< LONGLONG >( page_size() );
-                if ( !::SetFilePointerEx( file_.get(), inc, NULL, FILE_END ) || !::SetEndOfFile( file_.get() ) )
+                details::rare_exclusive_frequent_shared_mutex<>::unique_lock lock( resize_guard_ );
                 {
-                    throw details::runtime_error( RetCode::IoError, "Unable to resize file" );
+                    if ( size_ == current_size )
+                    {
+                        mapping_ = std::move( safe_handle{} );
+
+                        LARGE_INTEGER inc;
+                        inc.QuadPart = static_cast<LONGLONG>( page_size() );
+                        if ( !::SetFilePointerEx( file_.get(), inc, NULL, FILE_END ) || !::SetEndOfFile( file_.get() ) )
+                        {
+                            throw details::runtime_error( RetCode::IoError, "Unable to resize file" );
+                        }
+
+                        size_ += page_size();
+                        mapping_ = std::move( create_mapping() );
+
+                        return true;
+                    }
                 }
+
+                return false;
             }
 
             using safe_mapped_area = std::unique_ptr< void, unmap_area >;
@@ -162,7 +179,7 @@ namespace jb
                 {
                     throw std::logic_error( "Requested mapping offset conflicts with memory granuarity" );
                 }
-                else if ( offset >= size() )
+                else if ( offset + page_size() >= size() )
                 {
                     throw std::logic_error( "Requested mapping offset exceeds file size" );
                 }
